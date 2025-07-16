@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi TV Station Fusionado le falta salvar desde aleatorio el resto todo funciona </title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <style>
+    body {
+      background-color: #111;
+      color: #fff;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 1rem;
+    }
+    .player-container iframe, .player-container video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .swiper-slide {
+      background: #1f1f1f;
+      color: #fff;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      width: 280px !important;
+    }
+    .swiper-slide:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    }
+    .submenu {
+      position: absolute;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 0.5rem;
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      top: 100%;
+      left: 0;
+    }
+    .submenu button {
+      padding: 0.3rem 0.5rem;
+      text-align: left;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+    .submenu button:hover {
+      background: #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="text-4xl font-bold text-center mb-6">📺 Mi TV Station Fusionado</h1>
+
+  <!-- Controles globales -->
+  <div class="mb-4">
+    <input type="file" id="fileInput" accept=".json,.m3u" class="border p-2 rounded" />
+    <button onclick="handleFileUpload()" class="bg-indigo-600 text-white px-4 py-2 rounded ml-2">📂 Cargar Lista</button>
+    <input type="number" id="internalCount" min="1" max="1000" value="20" class="border p-2 rounded w-24 ml-4" onchange="mostrarCanalesInternosAleatorios()" />
+    <button onclick="mostrarFavoritos()" class="bg-yellow-500 text-white px-4 py-2 rounded ml-2">⭐ Ver Favoritos</button>
+    <button onclick="exportarFavoritosJSON()" class="bg-gray-800 text-white px-4 py-2 rounded ml-2">📤 Exportar JSON</button>
+    <button onclick="exportarFavoritosM3U()" class="bg-blue-800 text-white px-4 py-2 rounded ml-2">📤 Exportar M3U</button>
+  </div>
+
+  <!-- 4 Monitores -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" id="monitores"></div>
+
+  <!-- Carrusel Swiper -->
+  <div class="swiper mySwiper mb-6">
+    <div class="swiper-wrapper" id="swiperCarrusel"></div>
+  </div>
+
+  <!-- Editor Visual de Canales -->
+  <div id="editorContainer" class="p-4 bg-gray-100 text-black rounded-lg shadow mb-6"></div>
+
+  <!-- Mini Monitor PiP -->
+  <div id="miniMonitor" class="fixed hidden bg-black rounded-lg shadow-lg overflow-hidden" style="z-index:50; width: 300px; height: 170px;">
+    <video id="miniVideo" class="w-full h-full" controls autoplay muted></video>
+  </div>
+
+  <!-- Buscador Flotante -->
+  <button id="btnMostrarBuscador" class="fixed bottom-4 right-4 bg-indigo-600 text-white p-3 rounded-full shadow-lg z-50 hover:bg-indigo-700 text-xl">🔍</button>
+  <div id="buscadorFlotante" class="fixed bottom-20 right-4 bg-white shadow-lg border rounded p-3 hidden" style="z-index:100;">
+    <input type="text" id="inputBuscador" placeholder="Buscar canal..." class="p-2 border rounded w-64 text-black" />
+    <ul id="resultadosBusqueda" class="mt-2 max-h-60 overflow-y-auto text-sm text-black"></ul>
+  </div>
+
+  <!-- Modal Favoritos y otros scripts -->
+  <script>
+// --- VARIABLES GLOBALES ---
+let playlist = JSON.parse(localStorage.getItem("lastPlaylist")) || [...Array(1000)].map((_, i) => ({ name: `Canal ${i + 1}`, url: `https://vod.mycamtv.net/${i + 1}.m3u8` }));
+let favorites = JSON.parse(localStorage.getItem("favorites")) || [];
+let youtubeResults = [[], [], [], []];
+let currentVideoIndex = [0, 0, 0, 0];
+let isPaused = [false, false, false, false];
+let apiKey = "AIzaSyA4NpwgJmEzBGGTzFFjShyrtWICgSSml-I";
+
+// --- MONITORES ---
+const monitoresDiv = document.getElementById("monitores");
+for (let i = 0; i < 4; i++) {
+    const container = document.createElement("div");
+container.innerHTML = `
+  <div class="player-container border rounded overflow-hidden mb-2" style="height: 220px;" id="player-container-${i}"></div>
+  <div class="flex gap-2 mb-4">
+    <input type="text" id="ytSearch${i}" placeholder="Buscar en YouTube" class="p-2 border rounded w-full" />
+    <button onclick="buscarYT(${i})" class="bg-red-600 text-white px-2 rounded">🔍</button>
+    <button onclick="toggleRotacion(${i})" class="bg-yellow-500 text-white px-2 rounded">⏸️</button>
+    <button onclick="siguienteVideo(${i})" class="bg-green-600 text-white px-2 rounded">⏭️</button>
+  </div>
+`;
+
+
+const aleatorioBtns = document.createElement("div");
+aleatorioBtns.className = "flex gap-2 mb-4";
+aleatorioBtns.innerHTML = `
+  <button onclick="iniciarAleatorio(${i})" class="bg-purple-600 px-2 py-1 rounded">🎲 Aleatorio</button>
+  <button onclick="detenerAleatorio(${i})" class="bg-red-700 px-2 py-1 rounded">⏹️ Detener</button>
+`;
+const favBtn = document.createElement("button");
+favBtn.className = "bg-pink-500 px-2 py-1 rounded text-white";
+favBtn.textContent = "💚 Guardar en Favoritos";
+favBtn.onclick = () => {
+  const iframe = container.querySelector("iframe");
+  const video = container.querySelector("video");
+  let name = `Favorito ${favorites.length + 1}`;
+  let url = "";
+
+  if (iframe && iframe.src.includes("youtube")) {
+  const videoId = getYouTubeId(iframe.src);
+  if (videoId) {
+    url = `https://www.youtube.com/watch?v=${videoId}`; // ✅ Guardamos la URL limpia
+    name = "YouTube Video";
+  }
+}
+
+
+  if (url && !favorites.find(f => f.url === url)) {
+    favorites.push({ name, url });
+    localStorage.setItem("favorites", JSON.stringify(favorites));
+    alert("✅ Guardado en favoritos");
+  } else {
+    alert("⚠️ Ya está en favoritos o no hay video en reproducción");
+  }
+};
+container.appendChild(favBtn);
+
+
+
+
+container.appendChild(aleatorioBtns);
+
+  monitoresDiv.appendChild(container);
+}
+
+// --- FUNCIONES YOUTUBE ---
+
+
+function buscarYT(index) {
+  const query = document.getElementById(`ytSearch${index}`).value.trim();
+  if (!query) return alert("Escribe una búsqueda");
+  fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=30&q=${encodeURIComponent(query)}&key=${apiKey}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.items.length) return alert("Sin resultados");
+      youtubeResults[index] = data.items;
+      currentVideoIndex[index] = 0;
+      reproducirVideo(index);
+      iniciarRotacion(index);
+    });
+}
+function reproducirVideo(index) {
+  const video = youtubeResults[index][currentVideoIndex[index]];
+  if (!video) return;
+  const videoId = video.id.videoId;
+  const container = document.getElementById(`player-container-${index}`);
+  container.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0" allowfullscreen frameborder="0" class="w-full h-full"></iframe>`;
+}
+function iniciarRotacion(index) {
+  detenerRotacion(index);
+  window[`interval${index}`] = setInterval(() => {
+    if (!isPaused[index]) siguienteVideo(index);
+  }, 900000);
+}
+function detenerRotacion(index) {
+  clearInterval(window[`interval${index}`]);
+}
+
+function toggleRotacion(index) {
+  isPaused[index] = !isPaused[index];
+  const estado = isPaused[index] ? "⏸️ Pausado" : "▶️ Reanudado";
+  alert(`Monitor ${index + 1}: ${estado}`);
+}
+function siguienteVideo(index) {
+  currentVideoIndex[index]++;
+  if (currentVideoIndex[index] >= youtubeResults[index].length) currentVideoIndex[index] = 0;
+  reproducirVideo(index);
+}
+
+// --- CARGA DE LISTAS Y CARRUSEL INTERNO ---
+const fileInput = document.getElementById("fileInput");
+const internalCountInput = document.getElementById("internalCount");
+
+function parseM3U(content) {
+  const lines = content.split('\n');
+  const parsed = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('#EXTINF')) {
+      const name = lines[i].split(',')[1]?.trim() || 'Sin nombre';
+      const url = lines[i + 1]?.trim();
+      if (url) parsed.push({ name, url });
+    }
+  }
+  return parsed;
+}
+
+
+function handleFileUpload() {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      playlist = file.name.endsWith('.json') ? JSON.parse(e.target.result) : parseM3U(e.target.result);
+      localStorage.setItem("lastPlaylist", JSON.stringify(playlist));
+      mostrarCanalesInternosAleatorios();
+      renderEditor();
+      alert("Lista cargada con éxito");
+    } catch (err) {
+      alert("Error al procesar el archivo");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function mostrarCanalesInternosAleatorios() {
+  const cantidad = parseInt(internalCountInput.value) || 20;
+  const internos = playlist.filter(c => c.url.includes("vod.mycamtv.net"));
+  const seleccionados = internos.length ? internos.sort(() => 0.5 - Math.random()).slice(0, cantidad) : playlist.slice(0, cantidad);
+  llenarSwiperConCanales(seleccionados);
+}
+
+function llenarSwiperConCanales(listaCanales) {
+  const contenedor = document.getElementById("swiperCarrusel");
+  contenedor.innerHTML = "";
+  listaCanales.forEach(canal => {
+    const slide = document.createElement("div");
+    slide.className = "swiper-slide cursor-pointer";
+    slide.textContent = `📻 ${canal.name}`;
+    slide.onclick = () => {
+  const container = document.getElementById("player-container-0");
+
+  if (canal.url.includes("youtube.com") || canal.url.includes("youtu.be")) {
+    const videoId = getYouTubeId(canal.url);
+    if (videoId) {
+      container.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0" allowfullscreen frameborder="0" class="w-full h-full"></iframe>`;
+    } else {
+      alert("⚠️ No se pudo extraer el ID del video de YouTube");
+    }
+  } else {
+    container.innerHTML = `<video id="player0" controls autoplay class="w-full h-full"><source src="${canal.url}" type="application/x-mpegURL"></video>`;
+  }
+};
+
+    contenedor.appendChild(slide);
+  });
+  new Swiper(".mySwiper", {
+    slidesPerView: "auto",
+    spaceBetween: 20,
+    freeMode: true,
+    grabCursor: true,
+    mousewheel: true
+  });
+}
+
+window.addEventListener("load", () => {
+  mostrarCanalesInternosAleatorios();
+});
+
+// --- FAVORITOS, EDITOR VISUAL Y MINI MONITOR ---
+function exportarFavoritosJSON() {
+  if (favorites.length === 0) return alert("No hay favoritos");
+  const data = JSON.stringify(favorites, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "favoritos.json";
+  link.click();
+}
+
+function exportarFavoritosM3U() {
+  if (favorites.length === 0) return alert("No hay favoritos");
+  const m3u = "#EXTM3U\n" + favorites.map(f => `#EXTINF:-1,${f.name}\n${f.url}`).join("\n");
+  const blob = new Blob([m3u], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "favoritos.m3u";
+  link.click();
+}
+
+
+function mostrarFavoritos() {
+  if (favorites.length === 0) return alert("No hay favoritos guardados");
+  const modal = document.createElement("div");
+  modal.className = "fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50";
+  const contenedor = document.createElement("div");
+  contenedor.className = "bg-white text-black rounded-xl p-6 max-w-xl w-full shadow-lg overflow-y-auto max-h-[80vh]";
+  const cerrarBtn = document.createElement("button");
+  cerrarBtn.textContent = "❌ Cerrar";
+  cerrarBtn.className = "bg-red-600 text-white px-3 py-2 rounded mb-4 float-right";
+  cerrarBtn.onclick = () => modal.remove();
+  const lista = document.createElement("div");
+  lista.className = "space-y-3";
+  favorites.forEach((canal, index) => {
+    const fila = document.createElement("div");
+    fila.className = "flex justify-between items-center p-2 border rounded";
+    const nombre = document.createElement("span");
+    nombre.textContent = canal.name;
+    const botones = document.createElement("div");
+    botones.className = "flex gap-2";
+    const btnVer = document.createElement("button");
+    btnVer.textContent = "▶️";
+    btnVer.className = "bg-green-600 text-white px-2 py-1 rounded";
+    btnVer.onclick = () => {
+  const container = document.getElementById("player-container-0");
+
+  if (canal.url.includes("youtube.com") || canal.url.includes("youtu.be")) {
+    const videoId = getYouTubeId(canal.url);
+    if (videoId) {
+      container.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0" allowfullscreen frameborder="0" class="w-full h-full"></iframe>`;
+    } else {
+      alert("⚠️ No se pudo extraer el ID del video de YouTube");
+    }
+  } else {
+    container.innerHTML = `<video id="player0" controls autoplay class="w-full h-full"><source src="${canal.url}" type="application/x-mpegURL"></video>`;
+  }
+
+  modal.remove();
+};
+
+    const btnMini = document.createElement("button");
+    btnMini.textContent = "📺";
+    btnMini.className = "bg-blue-600 text-white px-2 py-1 rounded";
+    btnMini.onclick = () => {
+      const miniVideo = document.getElementById("miniVideo");
+      miniVideo.src = canal.url;
+      miniVideo.play();
+      document.getElementById("miniMonitor").classList.remove("hidden");
+      modal.remove();
+    };
+    const btnEliminar = document.createElement("button");
+    btnEliminar.textContent = "🗑️";
+    btnEliminar.className = "bg-red-500 text-white px-2 py-1 rounded";
+    btnEliminar.onclick = () => {
+      favorites.splice(index, 1);
+      localStorage.setItem("favorites", JSON.stringify(favorites));
+      modal.remove();
+      mostrarFavoritos();
+    };
+    botones.append(btnVer, btnMini, btnEliminar);
+    fila.append(nombre, botones);
+    lista.appendChild(fila);
+  });
+  contenedor.append(cerrarBtn, lista);
+  modal.appendChild(contenedor);
+  document.body.appendChild(modal);
+}
+
+function renderEditor() {
+  const editorContainer = document.getElementById("editorContainer");
+  editorContainer.innerHTML = "<h2 class='text-xl font-bold mb-4'>✏️ Editor de Canales</h2>";
+  playlist.forEach((channel, index) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'grid grid-cols-1 md:grid-cols-6 gap-2 mb-3 items-center relative';
+    const nameInput = document.createElement('input');
+    nameInput.value = channel.name;
+    nameInput.className = 'border p-2 rounded';
+    nameInput.onchange = () => playlist[index].name = nameInput.value;
+    const urlInput = document.createElement('input');
+    urlInput.value = channel.url;
+    urlInput.className = 'border p-2 rounded';
+    urlInput.onchange = () => playlist[index].url = urlInput.value;
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = '📌';
+    saveBtn.className = 'bg-blue-600 text-white px-3 py-2 rounded';
+    saveBtn.onclick = () => {
+      playlist[index] = { name: nameInput.value, url: urlInput.value };
+      localStorage.setItem('lastPlaylist', JSON.stringify(playlist));
+      mostrarCanalesInternosAleatorios();
+    };
+    const playBtn = document.createElement('button');
+    playBtn.textContent = '▶️';
+    playBtn.className = 'bg-green-600 text-white px-3 py-2 rounded relative';
+    playBtn.onclick = (e) => {
+      document.querySelectorAll(".submenu").forEach(el => el.remove());
+      const submenu = document.createElement("div");
+      submenu.className = "submenu";
+      const btnMain = document.createElement("button");
+      btnMain.textContent = "Ver en Monitor Principal";
+      btnMain.onclick = () => {
+  const container = document.getElementById("player-container-0");
+
+  if (channel.url.includes("youtube.com") || channel.url.includes("youtu.be")) {
+    const videoId = getYouTubeId(channel.url);
+    if (videoId) {
+      container.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0" allowfullscreen frameborder="0" class="w-full h-full"></iframe>`;
+    } else {
+      alert("⚠️ No se pudo reproducir YouTube");
+    }
+  } else {
+    container.innerHTML = `<video id="player0" controls autoplay class="w-full h-full"><source src="${channel.url}" type="application/x-mpegURL"></video>`;
+  }
+
+  submenu.remove();
+};
+
+      const btnMini = document.createElement("button");
+      btnMini.textContent = "Ver en Mini Monitor";
+      btnMini.onclick = () => {
+        const miniVideo = document.getElementById("miniVideo");
+        miniVideo.src = channel.url;
+        miniVideo.play();
+        const rect = playBtn.getBoundingClientRect();
+        const miniMonitor = document.getElementById("miniMonitor");
+        miniMonitor.style.left = `${rect.right + 10}px`;
+        miniMonitor.style.top = `${rect.top}px`;
+        miniMonitor.classList.remove("hidden");
+        submenu.remove();
+      };
+      submenu.append(btnMain, btnMini);
+      playBtn.appendChild(submenu);
+    };
+    const favBtn = document.createElement('button');
+    favBtn.textContent = '💚';
+    favBtn.className = 'bg-pink-500 text-white px-3 py-2 rounded';
+    favBtn.onclick = () => {
+      if (!favorites.find(f => f.url === channel.url)) {
+        favorites.push(channel);
+        localStorage.setItem('favorites', JSON.stringify(favorites));
+        alert('Agregado a favoritos');
+      } else {
+        alert('Ya está en favoritos');
+      }
+    };
+    wrapper.append(nameInput, urlInput, saveBtn, playBtn, favBtn);
+    editorContainer.appendChild(wrapper);
+  });
+}
+// --- BUSCADOR FLOTANTE ---
+const buscador = document.getElementById("buscadorFlotante");
+const inputBuscador = document.getElementById("inputBuscador");
+const resultadosBusqueda = document.getElementById("resultadosBusqueda");
+const btnMostrarBuscador = document.getElementById("btnMostrarBuscador");
+
+btnMostrarBuscador.addEventListener("click", () => {
+  buscador.classList.toggle("hidden");
+  if (!buscador.classList.contains("hidden")) {
+    inputBuscador.value = "";
+    resultadosBusqueda.innerHTML = "";
+    inputBuscador.focus();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement.tagName !== "INPUT") {
+    e.preventDefault();
+    buscador.classList.remove("hidden");
+    inputBuscador.focus();
+  } else if (e.key === "Escape") {
+    buscador.classList.add("hidden");
+  }
+});
+
+inputBuscador.addEventListener("input", () => {
+  const texto = inputBuscador.value.toLowerCase();
+  resultadosBusqueda.innerHTML = "";
+  playlist.forEach((channel, index) => {
+    if (channel.name.toLowerCase().includes(texto)) {
+      const li = document.createElement("li");
+      li.textContent = `📺 ${channel.name}`;
+      li.className = "p-1 hover:bg-gray-200 cursor-pointer";
+      li.onclick = (e) => {
+        buscador.classList.add("hidden");
+        const miniVideo = document.getElementById("miniVideo");
+        miniVideo.src = channel.url;
+        miniVideo.play();
+        const rect = e.target.getBoundingClientRect();
+        const miniMonitor = document.getElementById("miniMonitor");
+        miniMonitor.style.left = `${rect.right + 10}px`;
+        miniMonitor.style.top = `${rect.top}px`;
+        miniMonitor.classList.remove("hidden");
+
+        const editorWrappers = document.getElementById("editorContainer").querySelectorAll("div");
+        if (editorWrappers[index]) {
+          editorWrappers[index].scrollIntoView({ behavior: "smooth", block: "center" });
+          editorWrappers[index].classList.add("ring", "ring-blue-400");
+          setTimeout(() => editorWrappers[index].classList.remove("ring", "ring-blue-400"), 2000);
+        }
+      };
+      resultadosBusqueda.appendChild(li);
+    }
+  });
+  if (!resultadosBusqueda.innerHTML) {
+    resultadosBusqueda.innerHTML = "<li class='text-gray-500'>Sin resultados</li>";
+  }
+});
+// --- FUNCIONES DE REPRODUCCIÓN ALEATORIA POR MONITOR ---
+let aleatorioTimers = [null, null, null, null];
+
+function iniciarAleatorio(index) {
+  if (!playlist.length) return alert("No hay playlist cargada");
+  detenerAleatorio(index);
+  aleatorioTimers[index] = setInterval(() => {
+    const aleatorio = playlist[Math.floor(Math.random() * playlist.length)];
+    const container = document.getElementById(`player-container-${index}`);
+    container.innerHTML = `<video controls autoplay class="w-full h-full"><source src="${aleatorio.url}"></video>`;
+  }, 10000); // cada 10 segundos puedes cambiarlo
+  alert(`🔁 Aleatorio iniciado en monitor ${index + 1}`);
+}
+
+function detenerAleatorio(index) {
+  if (aleatorioTimers[index]) {
+    clearInterval(aleatorioTimers[index]);
+    aleatorioTimers[index] = null;
+    alert(`⛔ Aleatorio detenido en monitor ${index + 1}`);
+  }
+}
+function getYouTubeId(url) {
+  const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
+</script>
+</body>
+</html>
