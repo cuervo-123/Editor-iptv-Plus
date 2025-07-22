@@ -187,7 +187,7 @@ function iniciarRotacion(index) {
   detenerRotacion(index);
   window[`interval${index}`] = setInterval(() => {
     if (!isPaused[index]) siguienteVideo(index);
-  }, 10000);
+  }, 30000);
 }
 function detenerRotacion(index) {
   clearInterval(window[`interval${index}`]);
@@ -521,7 +521,7 @@ function iniciarAleatorio(index) {
     const aleatorio = playlist[Math.floor(Math.random() * playlist.length)];
     const container = document.getElementById(`player-container-${index}`);
     container.innerHTML = `<video controls autoplay class="w-full h-full"><source src="${aleatorio.url}"></video>`;
-  }, 10000); // cada 10 segundos puedes cambiarlo
+  }, 30000); // cada 10 segundos puedes cambiarlo
   alert(`🔁 Aleatorio iniciado en monitor ${index + 1}`);
 }
 
