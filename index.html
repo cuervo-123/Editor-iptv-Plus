@@ -136,10 +136,13 @@ favBtn.onclick = () => {
   if (iframe && iframe.src.includes("youtube")) {
   const videoId = getYouTubeId(iframe.src);
   if (videoId) {
-    url = `https://www.youtube.com/watch?v=${videoId}`; // ✅ Guardamos la URL limpia
-    name = "YouTube Video";
+    url = `https://www.youtube.com/watch?v=${videoId}`;
+    // Buscar el título en los resultados actuales
+    const resultado = youtubeResults[i]?.find(item => item.id.videoId === videoId);
+    name = resultado ? resultado.snippet.title : "YouTube Video";
   }
 }
+
 
 
   if (url && !favorites.find(f => f.url === url)) {
