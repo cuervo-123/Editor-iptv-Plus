@@ -372,6 +372,24 @@ function mostrarFavoritos() {
     lista.appendChild(fila);
   });
   contenedor.append(cerrarBtn, lista);
+  // 🔼 y 🔽 Botones para subir y bajar scroll
+const btnSubir = document.createElement("button");
+btnSubir.textContent = "🔼";
+btnSubir.className = "fixed bottom-24 right-6 bg-indigo-700 text-white px-3 py-2 rounded-full text-xl z-50";
+btnSubir.onclick = () => {
+  contenedor.scrollBy({ top: -100, behavior: "smooth" });
+};
+
+const btnBajar = document.createElement("button");
+btnBajar.textContent = "🔽";
+btnBajar.className = "fixed bottom-6 right-6 bg-indigo-700 text-white px-3 py-2 rounded-full text-xl z-50";
+btnBajar.onclick = () => {
+  contenedor.scrollBy({ top: 100, behavior: "smooth" });
+};
+
+modal.appendChild(btnSubir);
+modal.appendChild(btnBajar);
+
   modal.appendChild(contenedor);
   document.body.appendChild(modal);
 }
