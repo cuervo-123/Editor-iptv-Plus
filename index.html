@@ -316,15 +316,18 @@ function mostrarFavoritos() {
   modal.className = "fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50";
 
   const contenedor = document.createElement("div");
-  contenedor.className = "bg-white text-black rounded-xl p-6 max-w-xl w-full shadow-lg overflow-y-auto max-h-[80vh] relative";
+  contenedor.className = "bg-white text-black rounded-xl p-6 max-w-xl w-full shadow-lg relative flex flex-col";
+  contenedor.style.maxHeight = "80vh";
 
   const cerrarBtn = document.createElement("button");
   cerrarBtn.textContent = "❌ Cerrar";
-  cerrarBtn.className = "bg-red-600 text-white px-3 py-2 rounded mb-4 float-right";
+  cerrarBtn.className = "bg-red-600 text-white px-3 py-2 rounded mb-2 self-end";
   cerrarBtn.onclick = () => modal.remove();
 
-  const lista = document.createElement("div");
-  lista.className = "space-y-3";
+  // Contenedor scrollable
+  const listaScroll = document.createElement("div");
+  listaScroll.className = "overflow-y-auto flex-1 space-y-3 pr-2";
+  listaScroll.style.maxHeight = "60vh";
 
   favorites.forEach((canal, index) => {
     const fila = document.createElement("div");
@@ -379,27 +382,30 @@ function mostrarFavoritos() {
 
     botones.append(btnVer, btnMini, btnEliminar);
     fila.append(nombre, botones);
-    lista.appendChild(fila);
+    listaScroll.appendChild(fila);
   });
 
-  contenedor.append(cerrarBtn, lista);
-  modal.appendChild(contenedor);
+  // Flechas internas
+  const controlesScroll = document.createElement("div");
+  controlesScroll.className = "flex justify-end gap-4 mt-4";
 
-  // 🔼 y 🔽 Botones para Smart TV
   const btnSubir = document.createElement("button");
   btnSubir.textContent = "🔼";
-  btnSubir.className = "fixed bottom-28 right-6 bg-indigo-700 text-white px-4 py-2 rounded-full text-2xl z-50";
-  btnSubir.onclick = () => contenedor.scrollBy({ top: -100, behavior: "smooth" });
+  btnSubir.className = "bg-indigo-700 text-white px-4 py-2 rounded-full text-xl";
+  btnSubir.onclick = () => listaScroll.scrollBy({ top: -100, behavior: "smooth" });
 
   const btnBajar = document.createElement("button");
   btnBajar.textContent = "🔽";
-  btnBajar.className = "fixed bottom-6 right-6 bg-indigo-700 text-white px-4 py-2 rounded-full text-2xl z-50";
-  btnBajar.onclick = () => contenedor.scrollBy({ top: 100, behavior: "smooth" });
+  btnBajar.className = "bg-indigo-700 text-white px-4 py-2 rounded-full text-xl";
+  btnBajar.onclick = () => listaScroll.scrollBy({ top: 100, behavior: "smooth" });
 
+  controlesScroll.append(btnSubir, btnBajar);
+
+  contenedor.append(cerrarBtn, listaScroll, controlesScroll);
+  modal.appendChild(contenedor);
   document.body.appendChild(modal);
-  document.body.appendChild(btnSubir);
-  document.body.appendChild(btnBajar);
 }
+
 
 function renderEditor() {
   const editorContainer = document.getElementById("editorContainer");
