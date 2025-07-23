@@ -311,42 +311,50 @@ function exportarFavoritosM3U() {
 
 function mostrarFavoritos() {
   if (favorites.length === 0) return alert("No hay favoritos guardados");
+
   const modal = document.createElement("div");
   modal.className = "fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50";
+
   const contenedor = document.createElement("div");
-  contenedor.className = "bg-white text-black rounded-xl p-6 max-w-xl w-full shadow-lg overflow-y-auto max-h-[80vh]";
+  contenedor.className = "bg-white text-black rounded-xl p-6 max-w-xl w-full shadow-lg overflow-y-auto max-h-[80vh] relative";
+
   const cerrarBtn = document.createElement("button");
   cerrarBtn.textContent = "❌ Cerrar";
   cerrarBtn.className = "bg-red-600 text-white px-3 py-2 rounded mb-4 float-right";
   cerrarBtn.onclick = () => modal.remove();
+
   const lista = document.createElement("div");
   lista.className = "space-y-3";
+
   favorites.forEach((canal, index) => {
     const fila = document.createElement("div");
     fila.className = "flex justify-between items-center p-2 border rounded";
+
     const nombre = document.createElement("span");
     nombre.textContent = canal.name;
+
     const botones = document.createElement("div");
     botones.className = "flex gap-2";
+
     const btnVer = document.createElement("button");
     btnVer.textContent = "▶️";
     btnVer.className = "bg-green-600 text-white px-2 py-1 rounded";
     btnVer.onclick = () => {
-  const container = document.getElementById("player-container-0");
+      const container = document.getElementById("player-container-0");
 
-  if (canal.url.includes("youtube.com") || canal.url.includes("youtu.be")) {
-    const videoId = getYouTubeId(canal.url);
-    if (videoId) {
-      container.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0" allowfullscreen frameborder="0" class="w-full h-full"></iframe>`;
-    } else {
-      alert("⚠️ No se pudo extraer el ID del video de YouTube");
-    }
-  } else {
-    container.innerHTML = `<video id="player0" controls autoplay class="w-full h-full"><source src="${canal.url}" type="application/x-mpegURL"></video>`;
-  }
+      if (canal.url.includes("youtube.com") || canal.url.includes("youtu.be")) {
+        const videoId = getYouTubeId(canal.url);
+        if (videoId) {
+          container.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0" allowfullscreen frameborder="0" class="w-full h-full"></iframe>`;
+        } else {
+          alert("⚠️ No se pudo extraer el ID del video de YouTube");
+        }
+      } else {
+        container.innerHTML = `<video id="player0" controls autoplay class="w-full h-full"><source src="${canal.url}" type="application/x-mpegURL"></video>`;
+      }
 
-  modal.remove();
-};
+      modal.remove();
+    };
 
     const btnMini = document.createElement("button");
     btnMini.textContent = "📺";
@@ -358,6 +366,7 @@ function mostrarFavoritos() {
       document.getElementById("miniMonitor").classList.remove("hidden");
       modal.remove();
     };
+
     const btnEliminar = document.createElement("button");
     btnEliminar.textContent = "🗑️";
     btnEliminar.className = "bg-red-500 text-white px-2 py-1 rounded";
@@ -367,31 +376,29 @@ function mostrarFavoritos() {
       modal.remove();
       mostrarFavoritos();
     };
+
     botones.append(btnVer, btnMini, btnEliminar);
     fila.append(nombre, botones);
     lista.appendChild(fila);
   });
+
   contenedor.append(cerrarBtn, lista);
-  // 🔼 y 🔽 Botones para subir y bajar scroll
-const btnSubir = document.createElement("button");
-btnSubir.textContent = "🔼";
-btnSubir.className = "fixed bottom-24 right-6 bg-indigo-700 text-white px-3 py-2 rounded-full text-xl z-50";
-btnSubir.onclick = () => {
-  contenedor.scrollBy({ top: -100, behavior: "smooth" });
-};
-
-const btnBajar = document.createElement("button");
-btnBajar.textContent = "🔽";
-btnBajar.className = "fixed bottom-6 right-6 bg-indigo-700 text-white px-3 py-2 rounded-full text-xl z-50";
-btnBajar.onclick = () => {
-  contenedor.scrollBy({ top: 100, behavior: "smooth" });
-};
-
-modal.appendChild(btnSubir);
-modal.appendChild(btnBajar);
-
   modal.appendChild(contenedor);
+
+  // 🔼 y 🔽 Botones para Smart TV
+  const btnSubir = document.createElement("button");
+  btnSubir.textContent = "🔼";
+  btnSubir.className = "fixed bottom-28 right-6 bg-indigo-700 text-white px-4 py-2 rounded-full text-2xl z-50";
+  btnSubir.onclick = () => contenedor.scrollBy({ top: -100, behavior: "smooth" });
+
+  const btnBajar = document.createElement("button");
+  btnBajar.textContent = "🔽";
+  btnBajar.className = "fixed bottom-6 right-6 bg-indigo-700 text-white px-4 py-2 rounded-full text-2xl z-50";
+  btnBajar.onclick = () => contenedor.scrollBy({ top: 100, behavior: "smooth" });
+
   document.body.appendChild(modal);
+  document.body.appendChild(btnSubir);
+  document.body.appendChild(btnBajar);
 }
 
 function renderEditor() {
